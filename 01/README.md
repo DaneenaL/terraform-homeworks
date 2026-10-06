@@ -319,4 +319,29 @@ resource "docker_container" "mysql" {
 
 ## Задание 3*
 
-Пока не выполнено.
+### Установка OpenTofu
+
+Поставил OpenTofu через snap, как и Terraform: "sudo snap install opentofu --classic". Установилась версия 1.13.1.
+
+![tofu --version](screenshots/22-tofu-version.png)
+
+### Тот же код с "tofu apply"
+
+Взял код из Задания 1 ("01/src/main.tf") и скопировал в отдельную папку [tofu/](tofu/), чтобы не смешивать с Terraform. Файл не менял: ограничение "required_version = ">= 1.12.0"" версия 1.13.1 проходит, так что править его, как в Задании 1, не пришлось.
+
+```
+cp ../src/main.tf ../src/.gitignore .
+tofu init
+```
+
+"tofu init" прошёл без проблем. Отличие, которое бросилось в глаза: OpenTofu пишет, что провайдеры подписаны ("signed, key ID ..."), а Terraform с зеркалом Яндекса писал "unauthenticated" - это из-за разных способов установки провайдеров.
+
+![tofu init](screenshots/23-tofu-init.png)
+
+Дальше "tofu apply" (с ручным "yes") и "docker ps":
+
+![tofu apply и docker ps](screenshots/24-tofu-apply-docker-ps.png)
+
+"Apply complete! Resources: 3 added" - создались те же три ресурса, что и в Terraform ("random_password", "docker_image", "docker_container"), контейнер "hello_world" работает на порту 9090. То есть для такого кода OpenTofu - drop-in замена Terraform: команды те же ("init", "apply", "destroy"), меняется только название бинарника, файлы конфигурации и state-формат остаются совместимыми.
+
+После проверки удалил ресурсы командой "tofu destroy".
