@@ -212,7 +212,108 @@ resource "docker_image" "nginx" {
 
 ## Задание 2*
 
-Пока не выполнено.
+### ВМ в облаке
+
+Создал ВМ через веб-консоль Yandex Cloud, а не через Terraform, чтобы токен облака случайно не попал в git. Минимальная конфигурация (2 vCPU, 2 ГБ RAM, 10 ГБ HDD), Ubuntu 24.04, публичный IP, доступ по ssh-ключу.
+
+### Docker на ВМ
+
+Подключился к ВМ по ssh (скриншот ниже, там же начало установки). "download.docker.com" с IP Яндекс.Облака недоступен (уже сталкивался в прошлых ДЗ), поэтому поставил Docker из репозитория Ubuntu и сразу прописал registry mirror для Docker Hub:
+
+```
+sudo apt update
+sudo apt install -y docker.io
+echo '{"registry-mirrors":["https://mirror.gcr.io"]}' | sudo tee /etc/docker/daemon.json
+sudo systemctl restart docker
+sudo usermod -aG docker $USER
+```
+
+Группа "docker" нужна, чтобы Terraform, который заходит на ВМ по ssh, мог вызывать Docker без sudo. ![вход по ssh и установка](screenshots/19-vm-ssh-login.png)
+
+После перелогина проверил, что Docker работает и образ скачивается через mirror:
+
+![docker на ВМ](screenshots/17-vm-docker-install.png)
+
+### Подключение Terraform к remote docker по ssh
+
+В документации провайдера "kreuzwerker/docker" (Terraform Registry) у провайдера есть два нужных аргумента:
+
+> host - The Docker daemon address
+
+> ssh_opts - Additional SSH option flags to be appended when using `ssh://` protocol
+
+То есть в "host" вместо локального сокета указывается адрес вида "ssh://user@ip:22", а "ssh_opts" нужен для дополнительных ключей ssh. Я передал "StrictHostKeyChecking=no" и "UserKnownHostsFile=/dev/null", чтобы Terraform не спрашивал подтверждение отпечатка хоста, на которое нет возможности ответить неинтерактивно:
+
+```hcl
+provider "docker" {
+  host     = "ssh://${var.vm_user}@${var.vm_ip}:22"
+  ssh_opts = ["-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"]
+}
+```
+
+Логин и IP ВМ лежат в "personal.auto.tfvars", этот файл в ".gitignore" и в репозиторий не попадает. Код проекта - в [task2/](task2/).
+
+"terraform init" и "terraform validate" проходят:
+
+![init и validate](screenshots/18-task2-init-validate.png)
+
+### Контейнер mysql:8 через Terraform
+
+Код проекта ("task2/main.tf"):
+
+```hcl
+resource "random_password" "mysql_root" {
+  length      = 16
+  special     = false
+  min_upper   = 1
+  min_lower   = 1
+  min_numeric = 1
+}
+
+resource "random_password" "mysql_user" {
+  length      = 16
+  special     = false
+  min_upper   = 1
+  min_lower   = 1
+  min_numeric = 1
+}
+
+resource "docker_image" "mysql" {
+  name         = "mysql:8"
+  keep_locally = true
+}
+
+resource "docker_container" "mysql" {
+  image = docker_image.mysql.image_id
+  name  = "mysql"
+
+  ports {
+    internal = 3306
+    external = 3306
+    ip       = "127.0.0.1"
+  }
+
+  env = [
+    "MYSQL_ROOT_PASSWORD=${random_password.mysql_root.result}",
+    "MYSQL_DATABASE=wordpress",
+    "MYSQL_USER=wordpress",
+    "MYSQL_PASSWORD=${random_password.mysql_user.result}",
+    "MYSQL_ROOT_HOST=%"
+  ]
+}
+```
+
+Для root и для пользователя "wordpress" генерируются два разных пароля через "random_password", в "env" они подставляются интерполяцией ""...=${...}"" с двойными кавычками и фигурными скобками, как в примере с nginx. Порт опубликован как "127.0.0.1:3306", то есть mysql слушает только на самой ВМ и снаружи недоступен. В "MYSQL_ROOT_HOST=%" кавычек нет специально: в списке "env" они стали бы частью значения переменной.
+
+"terraform apply" (с ручным "yes") выполняется на моей машине, а контейнер создаётся на ВМ:
+
+![terraform apply](screenshots/20-task2-apply.png)
+
+Проверка на самой ВМ: зашёл по ssh, "docker ps" показывает контейнер "mysql" с портом "127.0.0.1:3306->3306/tcp", а "docker exec mysql env" показывает переданные переменные окружения, в том числе два разных сгенерированных пароля:
+
+![docker ps и env на ВМ](screenshots/21-vm-docker-ps-env.png)
+
+Пароли на скриншоте тестовые: ВМ и контейнер одноразовые, после проверки удалены.
 
 ## Задание 3*
 
