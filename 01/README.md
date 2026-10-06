@@ -236,13 +236,15 @@ sudo usermod -aG docker $USER
 
 ### Подключение Terraform к remote docker по ssh
 
-В документации провайдера "kreuzwerker/docker" (Terraform Registry) у провайдера есть два нужных аргумента:
+В документации провайдера "kreuzwerker/docker" на Terraform Registry (раздел Schema, блок Optional) нашёл аргументы, которые нужны для подключения к удалённому Docker:
 
-> host - The Docker daemon address
+> `host` (String) The Docker daemon address
 
-> ssh_opts - Additional SSH option flags to be appended when using `ssh://` protocol
+> `ssh_opts` (List of String) Additional SSH option flags to be appended when using `ssh://` protocol
 
-То есть в "host" вместо локального сокета указывается адрес вида "ssh://user@ip:22", а "ssh_opts" нужен для дополнительных ключей ssh. Я передал "StrictHostKeyChecking=no" и "UserKnownHostsFile=/dev/null", чтобы Terraform не спрашивал подтверждение отпечатка хоста, на которое нет возможности ответить неинтерактивно:
+> `context` (String) The name of the Docker context to use. Can also be set via `DOCKER_CONTEXT` environment variable. Overrides the `host` if set.
+
+Есть два способа. Первый - указать адрес демона в "host" в виде "ssh://user@ip:22", а в "ssh_opts" передать дополнительные ключи ssh. Второй - заранее создать docker context на рабочей станции и указать его имя в "context". Я выбрал первый: он не требует отдельной настройки на машине, всё описано в самом коде. Я передал "StrictHostKeyChecking=no" и "UserKnownHostsFile=/dev/null", чтобы Terraform не спрашивал подтверждение отпечатка хоста, на которое нет возможности ответить неинтерактивно:
 
 ```hcl
 provider "docker" {
