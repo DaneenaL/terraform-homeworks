@@ -1,0 +1,11 @@
+---
+- name: Check connection to all VMs
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Ping
+      ansible.builtin.ping:
+
+    - name: Show fqdn from inventory
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} fqdn={{ fqdn }}"
