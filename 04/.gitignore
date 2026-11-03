@@ -1,0 +1,9 @@
+# personal data and local Terraform files must not go to git
+personal.auto.tfvars
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+crash.log
+.terraformrc
+terraform.rc
